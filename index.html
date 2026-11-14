@@ -6,705 +6,472 @@
 <title>Elven Chronicles</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;user-select:none;-webkit-user-select:none}
-html,body{width:100%;height:100%;overflow:hidden;background:#000}
-#gameCanvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;width:100%;height:100%}
-#ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none}
-.controls{position:fixed;bottom:20px;pointer-events:auto;display:flex;gap:8px}
-#leftControls{left:20px;flex-direction:column;align-items:center}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:monospace}
+#gameCanvas{display:block;image-rendering:pixelated;width:100%;height:100%}
+.controls{position:fixed;bottom:15px;pointer-events:auto;display:flex;gap:8px;z-index:10}
+#leftControls{left:15px;flex-direction:column;align-items:center}
 #leftControls .row{display:flex;gap:8px}
-#rightControls{right:20px;flex-direction:column;gap:8px}
-.btn{width:56px;height:56px;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.5);border-radius:12px;color:#fff;font-size:22px;font-weight:bold;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.btn:active,.btn.pressed{background:rgba(255,255,255,0.5);transform:scale(0.92)}
-#attackBtn{background:rgba(220,50,50,0.5);border-color:rgba(255,100,100,0.8);font-size:26px;width:64px;height:64px}
-#menuBtn{position:fixed;top:10px;right:10px;width:44px;height:44px;background:rgba(0,0,0,0.7);border:2px solid #fff;border-radius:8px;pointer-events:auto;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
-#loadingScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;color:#4da6ff;font-family:monospace}
-#loadingBar{width:240px;height:18px;border:2px solid #4da6ff;background:#001a33;margin-top:20px}
-#loadingFill{height:100%;background:#4da6ff;width:0%;transition:width 0.2s}
-#loadingText{font-size:18px;margin-bottom:10px}
+#rightControls{right:15px;flex-direction:column;gap:8px}
+.btn{width:54px;height:54px;background:rgba(255,255,255,0.22);border:2px solid rgba(255,255,255,0.45);border-radius:12px;color:#fff;font-size:20px;font-weight:bold;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.btn:active,.btn.pressed{background:rgba(255,255,255,0.55)}
+#attackBtn{background:rgba(220,50,50,0.45);border-color:rgba(255,120,120,0.8);font-size:24px;width:62px;height:62px}
+#menuBtn{position:fixed;top:10px;right:10px;width:42px;height:42px;background:rgba(0,0,0,0.75);border:2px solid #4da6ff;border-radius:8px;pointer-events:auto;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;z-index:10;color:#4da6ff}
+#loadingScreen{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;color:#4da6ff}
+#loadingBar{width:240px;height:16px;border:2px solid #4da6ff;background:#001a33;margin-top:15px}
+#loadingFill{height:100%;background:#4da6ff;width:0%;transition:width .2s}
 </style>
 </head>
 <body>
-<div id="loadingScreen">
-  <div id="loadingText">Loading Elven Chronicles...</div>
-  <div id="loadingBar"><div id="loadingFill"></div></div>
-</div>
+<div id="loadingScreen"><div id="loadingText" style="font-size:18px">Loading...</div><div id="loadingBar"><div id="loadingFill"></div></div></div>
 <canvas id="gameCanvas"></canvas>
-<div id="ui">
-  <div id="leftControls" class="controls">
-    <div class="btn" id="btnUp">▲</div>
-    <div class="row">
-      <div class="btn" id="btnLeft">◄</div>
-      <div class="btn" id="btnDown">▼</div>
-      <div class="btn" id="btnRight">►</div>
-    </div>
-  </div>
-  <div id="rightControls" class="controls">
-    <div class="btn" id="attackBtn">⚔</div>
-  </div>
-  <div id="menuBtn">☰</div>
+<div id="leftControls" class="controls">
+<div class="btn" id="btnUp">▲</div>
+<div class="row"><div class="btn" id="btnLeft">◄</div><div class="btn" id="btnDown">▼</div><div class="btn" id="btnRight">►</div></div>
 </div>
+<div id="rightControls" class="controls"><div class="btn" id="attackBtn">⚔</div></div>
+<div id="menuBtn">☰</div>
 <script>
 'use strict';
-const canvas=document.getElementById('gameCanvas');
-const ctx=canvas.getContext('2d');
+const canvas=document.getElementById('gameCanvas'),ctx=canvas.getContext('2d');
 ctx.imageSmoothingEnabled=false;
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+resize();addEventListener('resize',resize);
 
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
-resize();
-window.addEventListener('resize',resize);
-
-// ===== ATLAS LOADING =====
-let atlasImage=null;
-let atlasData=null; // {spriteName: {x,y,w,h}, ...}
-let atlasLoaded=false;
-
-function setProgress(p){document.getElementById('loadingFill').style.width=p+'%';}
-function setLoadingText(t){document.getElementById('loadingText').textContent=t;}
-
-// Helper: trim all keys in object recursively
-function trimKeys(obj){
-  if(!obj||typeof obj!=='object')return obj;
-  if(Array.isArray(obj))return obj.map(trimKeys);
-  const result={};
-  for(const k in obj){
-    result[k.trim()]=trimKeys(obj[k]);
-  }
-  return result;
-}
+// ================= ATLAS =================
+let atlasImg=null,atlasData=null,atlasLoaded=false;
+function trimKeys(o){if(!o||typeof o!=='object')return o;if(Array.isArray(o))return o.map(trimKeys);const r={};for(const k in o)r[k.trim()]=trimKeys(o[k]);return r;}
+function setProg(p,t){document.getElementById('loadingFill').style.width=p+'%';if(t)document.getElementById('loadingText').textContent=t;}
 
 async function loadAtlas(){
   try{
-    setProgress(5);
-    setLoadingText('Loading atlas.json...');
-    const resp=await fetch('atlas.json');
-    const raw=await resp.json();
-    const cleaned=trimKeys(raw);
-    setProgress(40);
-    
-    // Get image filename (trim spaces)
-    const imgFile=(cleaned.image||'atlas.png').trim();
-    setLoadingText('Loading '+imgFile+'...');
-    
-    atlasImage=new Image();
-    atlasImage.crossOrigin='anonymous';
-    await new Promise((res,rej)=>{
-      atlasImage.onload=res;
-      atlasImage.onerror=rej;
-      atlasImage.src=imgFile;
-    });
-    
-    // Build sprite lookup
+    setProg(10,'Loading atlas.json...');
+    const j=trimKeys(await(await fetch('atlas.json')).json());
+    setProg(30,'Loading atlas.png...');
+    // try atlas.png first, fallback to atlas_None.png
+    for(const f of ['atlas.png','atlas_None.png']){
+      try{
+        atlasImg=new Image();atlasImg.crossOrigin='anonymous';
+        await new Promise((res,rej)=>{atlasImg.onload=res;atlasImg.onerror=rej;atlasImg.src=f;});
+        setProg(60,'Using '+f);break;
+      }catch(e){atlasImg=null;}
+    }
+    if(!atlasImg)throw new Error('no atlas image');
     atlasData={};
-    const sprites=cleaned.sprites||{};
-    for(const name in sprites){
-      const s=sprites[name];
-      atlasData[name.trim()]={x:s.x,y:s.y,w:s.w,h:s.h};
-    }
-    
-    setProgress(100);
+    const sp=j.sprites||{};
+    for(const n in sp){const s=sp[n];atlasData[n]={x:s.x,y:s.y,w:s.w,h:s.h};}
     atlasLoaded=true;
-    setLoadingText('Loaded! '+Object.keys(atlasData).length+' sprites');
-  }catch(e){
-    console.error('Atlas load failed:',e);
-    setProgress(100);
-    setLoadingText('Atlas failed - using fallback');
-    atlasLoaded=false;
-  }
-  setTimeout(()=>{document.getElementById('loadingScreen').style.display='none';},800);
+    setProg(100,'OK! '+Object.keys(atlasData).length+' sprites');
+  }catch(e){console.error(e);setProg(100,'Fallback graphics');atlasLoaded=false;}
+  setTimeout(()=>document.getElementById('loadingScreen').style.display='none',600);
 }
 
-// Draw sprite by name
 function drawSprite(name,x,y,scale=1,flip=false){
-  if(!atlasLoaded||!atlasData)return false;
-  const s=atlasData[name];
-  if(!s)return false;
+  if(!atlasLoaded)return false;
+  const s=atlasData[name];if(!s)return false;
   ctx.save();
-  if(flip){
-    ctx.translate(x+s.w*scale,y);
-    ctx.scale(-1,1);
-    ctx.drawImage(atlasImage,s.x,s.y,s.w,s.h,0,0,s.w*scale,s.h*scale);
-  }else{
-    ctx.drawImage(atlasImage,s.x,s.y,s.w,s.h,x,y,s.w*scale,s.h*scale);
-  }
-  ctx.restore();
-  return true;
+  if(flip){ctx.translate(x+s.w*scale,y);ctx.scale(-1,1);ctx.drawImage(atlasImg,s.x,s.y,s.w,s.h,0,0,s.w*scale,s.h*scale);}
+  else ctx.drawImage(atlasImg,s.x,s.y,s.w,s.h,x,y,s.w*scale,s.h*scale);
+  ctx.restore();return true;
 }
+function box(c,x,y,w,h){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
 
-// Fallback colored box
-function drawFallback(color,x,y,w,h,label){
-  ctx.fillStyle=color;
-  ctx.fillRect(x,y,w,h);
-  if(label){
-    ctx.fillStyle='#fff';
-    ctx.font='bold 10px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(label,x+w/2,y+h/2+4);
-  }
-}
+// ================= CONSTANTS =================
+const TILE=48,WW=36,WH=36;
+// tiles: 0 grass,1 dirt,2 water,3 tree,4 rock,5 snow,6 house,7 path,8 bridge,9 flowers,10 wall
+const TCOL=['#2f6b1f','#7a6248','#1e88e5','#14400f','#5a5a5a','#dfe9f5','#6b3a1a','#b89a6a','#8a6a42','#3f8f2f','#3a3a3a'];
+const TSPR=['s1438_img158_pal291_tr0','s1440_img159_pal292_tr0','s1442_img160_pal293_tr0','s1444_img161_pal294_tr0','s1466_img172_pal312_tr0','s1468_img172_pal314_tr0','s1470_img173_pal316_tr0','s1475_img175_pal321_tr0','s1487_img179_pal333_tr0','s1511_img187_pal353_tr0','s1466_img172_pal312_tr0'];
+const SOLID={2:1,3:1,4:1,6:1,10:1};
 
-// ===== CONSTANTS =====
-const TILE=32;
-const WORLD_W=40;
-const WORLD_H=40;
-const TILE_COLORS=['#3a7d2c','#8b7355','#1e90ff','#1e5a1e','#696969','#e8f0ff','#8b4513','#c9a96e','#a08050','#4a9d3c'];
+// ================= WORLD =================
+const map=[];
+(function buildWorld(){
+  let seed=7;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};
+  for(let y=0;y<WH;y++){map[y]=[];for(let x=0;x<WW;x++){
+    if(x<1||y<1||x>WW-2||y>WH-2){map[y][x]=3;continue;}
+    map[y][x]=0;
+    if(rnd()<0.10)map[y][x]=3;
+    if(rnd()<0.03)map[y][x]=4;
+    if(rnd()<0.15)map[y][x]=1;
+  }}
+  // Lake
+  for(let y=8;y<=13;y++)for(let x=4;x<=9;x++)map[y][x]=2;
+  // Village (paths + houses)
+  for(let y=16;y<=23;y++)for(let x=14;x<=22;x++)map[y][x]=7;
+  map[17][15]=6;map[17][16]=6;map[17][20]=6;map[17][21]=6;
+  map[22][15]=6;map[22][16]=6;map[22][20]=6;map[22][21]=6;
+  map[19][18]=6;map[19][19]=6; // elder house
+  // Flowers garden
+  for(let y=24;y<=26;y++)for(let x=16;x<=20;x++)map[y][x]=9;
+  // Snow biome NE
+  for(let y=2;y<=10;y++)for(let x=24;x<=33;x++)map[y][x]=5;
+  for(let y=2;y<=10;y++)for(let x=24;x<=33;x++)if(rnd()<0.12)map[y][x]=10;
+  // Roads: village->snow, village->south
+  for(let y=11;y<=16;y++){map[y][18]=7;map[y][19]=7;}
+  for(let y=23;y<=34;y++){map[y][18]=7;map[y][19]=7;}
+  for(let x=9;x<=14;x++){map[15][x]=7;map[16][x]=7;}
+  // Bridge over lake
+  map[10][9]=8;map[10][10]=8;map[11][9]=8;map[11][10]=8;
+  // clear spawn area
+  for(let y=17;y<=22;y++)for(let x=17;x<=20;x++)if(map[y][x]!==7)map[y][x]=7;
+})();
 
-// ===== WORLD MAP =====
-const worldMap=[];
-function buildWorld(){
-  for(let y=0;y<WORLD_H;y++){
-    worldMap[y]=[];
-    for(let x=0;x<WORLD_W;x++){
-      if(x<2||x>=WORLD_W-2||y<2||y>=WORLD_H-2){worldMap[y][x]=3;continue;}
-      if(x>=8&&x<=14&&y>=10&&y<=16){worldMap[y][x]=2;continue;}
-      if(x>=22&&x<=32&&y>=4&&y<=12){worldMap[y][x]=5;continue;}
-      if(x>=16&&x<=22&&y>=18&&y<=24){worldMap[y][x]=7;continue;}
-      if(Math.random()<0.12){worldMap[y][x]=3;continue;}
-      if(Math.random()<0.04){worldMap[y][x]=4;continue;}
-      worldMap[y][x]=Math.random()<0.25?1:0;
-    }
-  }
-  for(let y=24;y<WORLD_H-2;y++){worldMap[y][19]=7;worldMap[y][20]=7;}
-  for(let y=12;y<18;y++){worldMap[y][19]=7;worldMap[y][20]=7;}
-  for(let x=14;x<=17;x++){worldMap[13][x]=8;worldMap[14][x]=8;}
-  worldMap[19][17]=6;worldMap[19][18]=6;
-  worldMap[21][21]=6;worldMap[21][22]=6;
-  worldMap[23][17]=6;worldMap[23][18]=6;
-}
-buildWorld();
-
-// ===== PLAYER =====
-const player={
-  x:19*TILE,y:20*TILE,
-  dir:0,frame:0,frameTimer:0,moving:false,speed:2.5,
-  hp:100,maxHp:100,mp:50,maxMp:50,
-  level:1,exp:0,expNext:100,gold:500,
-  atk:15,def:10,name:'Rogen'
+// ================= SPRITES =================
+const P={idle:'s0000_img0_pal0_tr0',walk:['s0001_img1_pal1_tr0','s0002_img1_pal1_tr1','s0003_img2_pal2_tr0','s0004_img3_pal3_tr0']};
+const ETYPE={
+  wargat:{spr:'s1463_img171_pal309_tr0',hp:60,atk:12,def:5,exp:25,gold:15,c:'#8b4513'},
+  minotaur:{spr:'s1464_img171_pal310_tr0',hp:85,atk:16,def:8,exp:40,gold:22,c:'#5a3a1a'},
+  tribalisk:{spr:'s1465_img171_pal311_tr0',hp:50,atk:10,def:4,exp:20,gold:12,c:'#2a7a2a'},
+  spider:{spr:'s1472_img174_pal318_tr0',hp:38,atk:8,def:3,exp:15,gold:8,c:'#4a2a6a'},
+  slime:{spr:'s1473_img174_pal319_tr0',hp:30,atk:6,def:2,exp:10,gold:5,c:'#2aaa2a'},
+  scorpion:{spr:'s1474_img174_pal320_tr0',hp:55,atk:11,def:6,exp:22,gold:14,c:'#aa4a2a'}
 };
-const jada={x:19*TILE-20,y:20*TILE+10,frame:0,frameTimer:0,hp:80,maxHp:80,mp:60,maxMp:60,level:1,atk:12,def:8};
 
-// ===== ENEMIES =====
-const ENEMY_TYPES={
-  wargat:{hp:60,atk:12,def:5,exp:25,gold:15,color:'#8b4513',size:48,sprite:'s1463_img171_pal309_tr0'},
-  minotaur:{hp:80,atk:15,def:8,exp:35,gold:20,color:'#654321',size:52,sprite:'s1464_img171_pal310_tr0'},
-  tribalisk:{hp:50,atk:10,def:4,exp:20,gold:12,color:'#228b22',size:44,sprite:'s1465_img171_pal311_tr0'},
-  spider:{hp:40,atk:8,def:3,exp:15,gold:8,color:'#4b0082',size:40,sprite:'s1472_img174_pal318_tr0'},
-  slime:{hp:30,atk:6,def:2,exp:10,gold:5,color:'#00ff00',size:36,sprite:'s1473_img174_pal319_tr0'},
-  scorpion:{hp:55,atk:11,def:6,exp:22,gold:14,color:'#ff6347',size:42,sprite:'s1474_img174_pal320_tr0'}
-};
+// ================= STATE =================
+let state='menu'; // menu, over, dialog, battle, menuOverlay, ending
+let prevState='over';
+const player={x:19*TILE+24,y:20*TILE,dir:0,frame:0,ft:0,moving:false,speed:3,hp:100,mhp:100,mp:50,mmp:50,lv:1,exp:0,next:100,gold:500,atk:15,def:10,name:'Rogen'};
+const jada={x:21*TILE,y:20*TILE,joined:false,frame:0,ft:0};
+const elder={x:19*TILE+24,y:18*TILE};
 const enemies=[];
-function spawnEnemies(){
-  const positions=[
-    {x:10*TILE,y:8*TILE,type:'spider'},{x:25*TILE,y:8*TILE,type:'slime'},
-    {x:30*TILE,y:20*TILE,type:'minotaur'},{x:8*TILE,y:25*TILE,type:'wargat'},
-    {x:28*TILE,y:30*TILE,type:'tribalisk'},{x:15*TILE,y:32*TILE,type:'scorpion'},
-    {x:5*TILE,y:15*TILE,type:'spider'},{x:35*TILE,y:15*TILE,type:'wargat'},
-    {x:20*TILE,y:35*TILE,type:'minotaur'},{x:12*TILE,y:20*TILE,type:'slime'}
-  ];
-  positions.forEach(p=>{
-    const t=ENEMY_TYPES[p.type];
-    enemies.push({
-      x:p.x,y:p.y,type:p.type,hp:t.hp,maxHp:t.hp,atk:t.atk,def:t.def,
-      exp:t.exp,gold:t.gold,size:t.size,sprite:t.sprite,color:t.color,
-      state:'patrol',dir:Math.random()*Math.PI*2,moveTimer:0,
-      patrolOrigin:{x:p.x,y:p.y},patrolRadius:80,detectRange:120,
-      attackRange:40,attackCooldown:0,speed:1.2,hitFlash:0
-    });
-  });
-}
-spawnEnemies();
+(function spawn(){
+  const spots=[[6,6,'spider'],[12,6,'slime'],[27,6,'wargat'],[30,4,'minotaur'],[8,28,'scorpion'],[28,28,'tribalisk'],[32,20,'wargat'],[5,20,'spider'],[10,30,'slime'],[30,12,'spider'],[26,9,'minotaur'],[22,30,'scorpion'],[3,14,'tribalisk'],[33,30,'wargat']];
+  spots.forEach(([tx,ty,t])=>{const e=ETYPE[t];enemies.push({x:tx*TILE+24,y:ty*TILE+24,type:t,spr:e.spr,hp:e.hp,mhp:e.hp,atk:e.atk,def:e.def,exp:e.exp,gold:e.gold,c:e.c,ox:tx*TILE+24,oy:ty*TILE+24,state:'patrol',dir:Math.random()*7,mt:0,cd:0,boss:(tx===26&&ty===9)});});
+})();
 
-const camera={x:0,y:0};
-const keys={};
-const buttons={up:false,down:false,left:false,right:false,attack:false,attackPressed:false};
-
-document.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;});
-document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-
-function bindBtn(id,key){
-  const el=document.getElementById(id);
-  const press=()=>{buttons[key]=true;if(key==='attack')buttons.attackPressed=true;el.classList.add('pressed');};
-  const release=()=>{buttons[key]=false;el.classList.remove('pressed');};
-  el.addEventListener('touchstart',e=>{e.preventDefault();press();});
-  el.addEventListener('touchend',e=>{e.preventDefault();release();});
-  el.addEventListener('touchcancel',e=>{e.preventDefault();release();});
-  el.addEventListener('mousedown',e=>{e.preventDefault();press();});
-  el.addEventListener('mouseup',e=>{e.preventDefault();release();});
-  el.addEventListener('mouseleave',e=>{release();});
-}
-bindBtn('btnUp','up');bindBtn('btnDown','down');bindBtn('btnLeft','left');
-bindBtn('btnRight','right');bindBtn('attackBtn','attack');
-
-document.getElementById('menuBtn').addEventListener('click',()=>{
-  if(gameState==='overworld')openMenu();else if(gameState==='menu')closeMenu();
-});
-
-// ===== GAME STATE =====
-let gameState='loading';
-let battle=null;
-let dialogQueue=[];
-let dialogActive=false;
-let dialogText='';
-let dialogSpeaker='';
-let dialogCharIdx=0;
-let dialogTimer=0;
-let dialogCallback=null;
-let menuOpen=false;
-let menuIdx=0;
-const menuOptions=['Status','Inventory','Quests','Save','Close'];
-let questLog=[
-  {id:1,name:'Defeat 5 Spiders',target:5,current:0,reward:'Elvenmerian Dress',done:false},
-  {id:2,name:'Talk to Village Elder',target:1,current:0,reward:'Elder\'s Knife',done:false}
+const quests=[
+  {id:1,name:'Talk to the Elder',cur:0,tgt:1,done:false},
+  {id:2,name:'Defeat 3 Spiders',cur:0,tgt:3,done:false},
+  {id:3,name:'Defeat the Minotaur Chief (NE snow)',cur:0,tgt:1,done:false}
 ];
-let storyFlags={metElder:false};
+const story={intro:false,elderDone:false,jadaJoined:false,boss:false};
+let dialogQ=[],dialogOn=false,dlgText='',dlgWho='',dlgI=0,dlgT=0,dlgCb=null;
+let battle=null,menuIdx=0,bossDefeated=false;
 
-// ===== DIALOG =====
-function showDialog(speaker,text,callback){
-  dialogQueue.push({speaker,text,callback});
-  if(!dialogActive)nextDialog();
-}
+function showDialog(who,text,cb){dialogQ.push({who,text,cb});if(!dialogOn)nextDialog();}
 function nextDialog(){
-  if(dialogQueue.length===0){dialogActive=false;if(dialogCallback){const cb=dialogCallback;dialogCallback=null;cb();}return;}
-  const d=dialogQueue.shift();
-  dialogSpeaker=d.speaker;dialogText=d.text;dialogCharIdx=0;dialogTimer=0;
-  dialogActive=true;dialogCallback=d.callback||null;gameState='dialog';
-}
-function advanceDialog(){
-  if(dialogCharIdx<dialogText.length){dialogCharIdx=dialogText.length;}
-  else{nextDialog();}
+  if(!dialogQ.length){dialogOn=false;state=prevState;if(dlgCb){const c=dlgCb;dlgCb=null;c();}return;}
+  const d=dialogQ.shift();dlgWho=d.who;dlgText=d.text;dlgI=0;dlgT=0;dlgCb=d.cb||null;dialogOn=true;state='dialog';
 }
 
-// ===== BATTLE =====
-function startBattle(enemy){
-  const t=ENEMY_TYPES[enemy.type];
-  battle={
-    enemy:{...enemy,maxHp:t.hp,atk:t.atk,def:t.def},
-    turn:'player',menuIdx:0,menuItems:['Attack','Magic','Item','Run'],
-    log:[`A wild ${enemy.type} appeared!`],animating:false,animTimer:0,won:false
-  };
-  gameState='battle';
-}
-function battleAction(idx){
-  if(!battle||battle.turn!=='player'||battle.animating)return;
-  battle.menuIdx=idx;
-  if(idx===0)playerAttack();
-  else if(idx===1){
-    battle.log.push('Magic: Flame Flunge!');
-    battleAnim(()=>{
-      const dmg=Math.max(5,20-battle.enemy.def);
-      battle.enemy.hp-=dmg;battle.enemy.hitFlash=10;
-      battle.log.push(`Flame Flunge deals ${dmg} damage!`);
-      afterPlayerAction();
-    });
+// ================= INPUT =================
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()))e.preventDefault();});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+const btn={up:false,down:false,left:false,right:false,atk:false,atkTap:false};
+function bind(id,k){const el=document.getElementById(id);
+  const on=e=>{e.preventDefault();btn[k]=true;if(k==='atk')btn.atkTap=true;el.classList.add('pressed');};
+  const off=e=>{e.preventDefault();btn[k]=false;el.classList.remove('pressed');};
+  el.addEventListener('touchstart',on);el.addEventListener('touchend',off);el.addEventListener('touchcancel',off);
+  el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);el.addEventListener('mouseleave',off);}
+bind('btnUp','up');bind('btnDown','down');bind('btnLeft','left');bind('btnRight','right');bind('attackBtn','atk');
+document.getElementById('menuBtn').addEventListener('click',()=>{if(state==='over')state='menuOverlay';else if(state==='menuOverlay')state='over';});
+
+function inputDir(){let dx=0,dy=0;
+  if(btn.left||keys['arrowleft']||keys['a'])dx--;if(btn.right||keys['arrowright']||keys['d'])dx++;
+  if(btn.up||keys['arrowup']||keys['w'])dy--;if(btn.down||keys['arrowdown']||keys['s'])dy++;return[dx,dy];}
+
+// ================= UPDATE =================
+function update(dt){
+  if(state==='menu'){
+    if(keys['enter']||keys[' ']||btn.atkTap){btn.atkTap=false;keys['enter']=false;keys[' ']=false;startGame();}
+    return;
   }
-  else if(idx===2){
-    if(player.hp<player.maxHp){
-      const heal=Math.min(30,player.maxHp-player.hp);
-      player.hp+=heal;battle.log.push(`Used Healing Herb! +${heal} HP`);
-      battleAnim(()=>afterPlayerAction());
-    }else{battle.log.push('No items!');}
-  }
-  else if(idx===3){
-    if(Math.random()<0.6){battle.log.push('Escaped!');setTimeout(()=>{battle=null;gameState='overworld';},800);}
-    else{battle.log.push('Failed to escape!');enemyTurn();}
-  }
-}
-function playerAttack(){
-  const dmg=Math.max(1,player.atk-battle.enemy.def+Math.floor(Math.random()*5));
-  battleAnim(()=>{
-    battle.enemy.hp-=dmg;battle.enemy.hitFlash=10;
-    battle.log.push(`Rogen attacks for ${dmg} damage!`);
-    afterPlayerAction();
-  });
-}
-function afterPlayerAction(){
-  if(battle.enemy.hp<=0){
-    battle.won=true;
-    battle.log.push(`${battle.enemy.type} defeated!`);
-    player.exp+=battle.enemy.exp;player.gold+=battle.enemy.gold;
-    battle.log.push(`+${battle.enemy.exp} EXP, +${battle.enemy.gold} Gold`);
-    if(player.exp>=player.expNext){
-      player.level++;player.exp-=player.expNext;
-      player.expNext=Math.floor(player.expNext*1.5);
-      player.maxHp+=20;player.hp=player.maxHp;
-      player.maxMp+=10;player.mp=player.maxMp;
-      player.atk+=3;player.def+=2;
-      battle.log.push(`Level Up! Now level ${player.level}!`);
+  if(state==='ending'){if(keys['enter']||btn.atkTap){btn.atkTap=false;state='menu';}return;}
+  if(state==='dialog'){
+    dlgT+=dt;if(dlgT>25&&dlgI<dlgText.length){dlgI++;dlgT=0;}
+    if(keys['enter']||keys[' ']||btn.atkTap){
+      btn.atkTap=false;keys['enter']=false;keys[' ']=false;
+      if(dlgI<dlgText.length)dlgI=dlgText.length;else nextDialog();
     }
-    questLog.forEach(q=>{
-      if(q.name.toLowerCase().includes(battle.enemy.type)&&!q.done){
-        q.current++;if(q.current>=q.target)q.done=true;
-      }
-    });
-    setTimeout(()=>{battle=null;gameState='overworld';},1500);
-  }else{enemyTurn();}
+    return;
+  }
+  if(state==='menuOverlay'){
+    const opts=['Status','Inventory','Quests','Save','Close'];
+    if(keys['arrowup']||btn.up){menuIdx=(menuIdx+opts.length-1)%opts.length;btn.up=false;}
+    if(keys['arrowdown']||btn.down){menuIdx=(menuIdx+1)%opts.length;btn.down=false;}
+    if(keys['enter']||keys[' ']||btn.atkTap){btn.atkTap=false;
+      if(menuIdx===4)state='over';
+      else if(menuIdx===3){localStorage.setItem('elvenSave',JSON.stringify({player,quests,story,jada}));showDialog('System','Game saved!',null);prevState='menuOverlay';}
+      else if(menuIdx===0){prevState='menuOverlay';showDialog(player.name,`LV ${player.lv}\nHP ${player.hp}/${player.mhp}  MP ${player.mp}/${player.mmp}\nATK ${player.atk}  DEF ${player.def}\nEXP ${player.exp}/${player.next}  Gold ${player.gold}`,null);}
+      else if(menuIdx===1){prevState='menuOverlay';showDialog('Inventory','Healing Herb x5\nMagic Water x3\nElder\'s Knife (+5 ATK)\nLeather Armor (+5 DEF)',null);}
+      else if(menuIdx===2){prevState='menuOverlay';showDialog('Quests',quests.map(q=>`${q.name}: ${q.cur}/${q.tgt}${q.done?' ✓':''}`).join('\n'),null);}
+    }
+    if(keys['escape'])state='over';
+    return;
+  }
+  if(state==='battle'){updateBattle(dt);return;}
+
+  // ---- OVERWORLD ----
+  const[dx,dy]=inputDir();
+  player.moving=(dx||dy);
+  if(player.moving){
+    let mx=dx,my=dy;if(dx&&dy){mx*=0.707;my*=0.707;}
+    const nx=player.x+mx*player.speed,ny=player.y+my*player.speed;
+    if(!solidAt(nx,player.y))player.x=nx;
+    if(!solidAt(player.x,ny))player.y=ny;
+    player.x=Math.max(TILE,Math.min(player.x,(WW-1)*TILE));
+    player.y=Math.max(TILE,Math.min(player.y,(WH-1)*TILE));
+    player.dir=(dy>0)?0:(dy<0)?2:(dx>0)?3:1;
+    player.ft+=dt;if(player.ft>130){player.frame=(player.frame+1)%4;player.ft=0;}
+  }else player.frame=0;
+
+  // Jada follow
+  if(jada.joined){const ddx=player.x-20-jada.x,ddy=player.y+10-jada.y,d=Math.hypot(ddx,ddy);
+    if(d>46){jada.x+=ddx/d*2;jada.y+=ddy/d*2;jada.ft+=dt;if(jada.ft>130){jada.frame=(jada.frame+1)%4;jada.ft=0;}}}
+
+  // Enemies AI
+  for(const e of enemies){if(e.hp<=0)continue;
+    const d=Math.hypot(player.x-e.x,player.y-e.y);
+    e.cd=Math.max(0,e.cd-dt);
+    if(d<150){e.state='chase';
+      if(d<34&&e.cd<=0){const dmg=Math.max(1,e.atk-player.def);player.hp-=dmg;e.cd=900;
+        if(player.hp<=0){player.hp=player.mhp;player.x=19*TILE+24;player.y=20*TILE;prevState='over';showDialog('System','You were defeated! Back to the village...',null);}}
+      else if(d>34){e.x+=(player.x-e.x)/d*1.8;e.y+=(player.y-e.y)/d*1.8;}
+    }else{e.state='patrol';e.mt+=dt;if(e.mt>1800){e.dir=Math.random()*7;e.mt=0;}
+      const nx=e.x+Math.cos(e.dir)*0.8,ny=e.y+Math.sin(e.dir)*0.8;
+      if(Math.hypot(nx-e.ox,ny-e.oy)<70&&!solidAt(nx,ny)){e.x=nx;e.y=ny;}else e.dir+=2;}
+  }
+
+  // Interact
+  if(btn.atkTap){btn.atkTap=false;
+    const near=enemies.filter(e=>e.hp>0&&Math.hypot(player.x-e.x,player.y-e.y)<44).sort((a,b)=>Math.hypot(player.x-a.x,player.y-a.y)-Math.hypot(player.x-b.x,player.y-b.y))[0];
+    if(near){startBattle(near);return;}
+    if(Math.hypot(player.x-elder.x,player.y-elder.y)<56){talkElder();return;}
+    if(!jada.joined&&Math.hypot(player.x-jada.x,player.y-jada.y)<56){
+      jada.joined=true;prevState='over';
+      showDialog('Jada','Rogen! I heard about the monsters. Take me with you — my magic will help!',null);return;}
+  }
+}
+function solidAt(x,y){const tx=Math.floor(x/TILE),ty=Math.floor(y/TILE);
+  if(tx<0||ty<0||tx>=WW||ty>=WH)return true;return!!SOLID[map[ty][tx]];}
+
+function talkElder(){
+  if(!story.elderDone){story.elderDone=true;quests[0].cur=1;quests[0].done=true;player.atk+=5;
+    prevState='over';
+    showDialog('Elder','Darkness rises in the north. The Minotaur Chief rules the snowlands.',()=>{});
+    showDialog('Elder','First, thin the spiders in the west forest. Then defeat the Chief.',()=>{});
+    showDialog('Elder','Take my knife — +5 ATK. Jada waits by the fountain; she will join you.',()=>{});
+  }else{prevState='over';
+    showDialog('Elder',quests[2].done?'The land is at peace. You are a true hero!':'Spiders: '+(quests[1].cur+'/3. Chief: '+(quests[2].done?'defeated!':'awaits in the NE snow.')),null);}
+}
+
+function startGame(){
+  if(!story.intro){story.intro=true;prevState='over';
+    showDialog('System','ELVEN CHRONICLES',()=>{});
+    showDialog('Narrator','The elven village of Lórien is besieged by monsters. Warrior Rogen sets out to end the threat.',()=>{});
+    showDialog('Narrator','Talk to the Elder (⚔ near him). Defeat monsters to grow stronger.',()=>{});
+  }else state='over';
+}
+
+// ================= BATTLE =================
+function startBattle(e){
+  battle={e,turn:'player',idx:0,items:['Attack','Magic','Item','Run'],log:[`A wild ${e.type}${e.boss?' (BOSS)':''} attacks!`],anim:0,over:false};
+  state='battle';
+}
+function updateBattle(dt){
+  if(battle.anim){battle.anim-=dt;return;}
+  if(battle.over)return;
+  if(battle.turn!=='player')return;
+  if(keys['arrowup']||btn.up){battle.idx=(battle.idx+3)%4;btn.up=false;}
+  if(keys['arrowdown']||btn.down){battle.idx=(battle.idx+1)%4;btn.down=false;}
+  if(keys['arrowleft']||btn.left){battle.idx=(battle.idx+3)%4;btn.left=false;}
+  if(keys['arrowright']||btn.right){battle.idx=(battle.idx+1)%4;btn.right=false;}
+  if(keys['enter']||keys[' ']||btn.atkTap){btn.atkTap=false;doBattleAct();}
+}
+function doBattleAct(){
+  const b=battle;if(b.idx===0){const dmg=Math.max(1,player.atk-b.e.def+(Math.random()*6|0));
+    b.anim=350;setTimeout(()=>{b.e.hp-=dmg;b.log.push(`Rogen hits for ${dmg}!`);afterPlayer();},350);}
+  else if(b.idx===1){if(player.mp<10){b.log.push('Not enough MP!');return;}player.mp-=10;
+    const dmg=Math.max(5,22-b.e.def);b.anim=350;setTimeout(()=>{b.e.hp-=dmg;b.log.push(`Flame Flunge! ${dmg} dmg!`);afterPlayer();},350);}
+  else if(b.idx===2){if(player.hp>=player.mhp){b.log.push('HP is full!');return;}
+    player.hp=Math.min(player.mhp,player.hp+40);b.log.push('Healing Herb +40 HP');afterPlayer();}
+  else if(b.idx===3){if(Math.random()<0.55){b.log.push('Escaped!');b.over=true;setTimeout(()=>{battle=null;state='over';},700);}
+    else{b.log.push('Cant escape!');enemyTurn();}}
+}
+function afterPlayer(){
+  const b=battle;
+  if(b.e.hp<=0){b.over=true;
+    b.log.push(`${b.e.type} defeated! +${b.e.exp}EXP +${b.e.gold}G`);
+    player.exp+=b.e.exp;player.gold+=b.e.gold;
+    if(b.e.type==='spider'){const q=quests[1];if(!q.done){q.cur++;if(q.cur>=q.tgt){q.done=true;b.log.push('Quest complete: Spiders!');}}}
+    if(b.e.boss){quests[2].cur=1;quests[2].done=true;bossDefeated=true;b.log.push('THE CHIEF IS SLAIN!');}
+    while(player.exp>=player.next){player.exp-=player.next;player.lv++;player.next=Math.floor(player.next*1.5);
+      player.mhp+=20;player.hp=player.mhp;player.mmp+=10;player.mp=player.mmp;player.atk+=3;player.def+=2;b.log.push(`LEVEL UP! LV ${player.lv}`);}
+    setTimeout(()=>{
+      const dead=enemies.find(e=>e===b.e);if(dead)dead.hp=0;
+      battle=null;
+      if(bossDefeated){state='ending';}
+      else state='over';
+    },1600);
+    return;}
+  enemyTurn();
 }
 function enemyTurn(){
-  battle.turn='enemy';
-  setTimeout(()=>{
-    if(!battle)return;
-    const dmg=Math.max(1,battle.enemy.atk-player.def+Math.floor(Math.random()*4));
-    player.hp-=dmg;battle.log.push(`${battle.enemy.type} attacks for ${dmg}!`);
-    if(player.hp<=0){
-      player.hp=0;battle.log.push('Rogen defeated...');
-      setTimeout(()=>{
-        player.hp=player.maxHp;player.x=19*TILE;player.y=20*TILE;
-        battle=null;gameState='overworld';
-        showDialog('System','You were defeated and returned to the village.',()=>{});
-      },1500);
-    }else{battle.turn='player';battle.menuIdx=0;}
+  const b=battle;b.turn='enemy';
+  setTimeout(()=>{if(!battle||battle.over)return;
+    const dmg=Math.max(1,b.e.atk-player.def+(Math.random()*4|0));
+    player.hp-=dmg;b.log.push(`${b.e.type} hits you for ${dmg}!`);
+    if(player.hp<=0){player.hp=0;b.over=true;b.log.push('You fall...');
+      setTimeout(()=>{player.hp=player.mhp;player.x=19*TILE+24;player.y=20*TILE;battle=null;state='over';
+        showDialog('System','Defeated! The Elder healed you.',null);},1500);}
+    else b.turn='player';
   },800);
 }
-function battleAnim(callback){battle.animating=true;battle.animTimer=400;setTimeout(()=>{battle.animating=false;callback();},400);}
 
-// ===== MENU =====
-function openMenu(){menuOpen=true;menuIdx=0;gameState='menu';}
-function closeMenu(){menuOpen=false;gameState='overworld';}
-
-// ===== UPDATE =====
-function update(dt){
-  if(keys['arrowup']||keys['w'])buttons.up=true;
-  if(keys['arrowdown']||keys['s'])buttons.down=true;
-  if(keys['arrowleft']||keys['a'])buttons.left=true;
-  if(keys['arrowright']||keys['d'])buttons.right=true;
-  if(keys[' ']||keys['enter'])buttons.attackPressed=true;
-
-  if(gameState==='menu'){
-    if(keys['arrowup']||buttons.up){menuIdx=(menuIdx-1+menuOptions.length)%menuOptions.length;buttons.up=false;keys['arrowup']=false;}
-    if(keys['arrowdown']||buttons.down){menuIdx=(menuIdx+1)%menuOptions.length;buttons.down=false;keys['arrowdown']=false;}
-    if(keys['enter']||keys[' ']||buttons.attackPressed){handleMenuSelect();keys['enter']=false;keys[' ']=false;buttons.attackPressed=false;}
-    return;
-  }
-  if(gameState==='dialog'){
-    dialogTimer+=dt;
-    if(dialogTimer>30&&dialogCharIdx<dialogText.length){dialogCharIdx++;dialogTimer=0;}
-    if(keys['enter']||keys[' ']||buttons.attackPressed){advanceDialog();keys['enter']=false;keys[' ']=false;buttons.attackPressed=false;buttons.attack=false;}
-    return;
-  }
-  if(gameState==='battle'){
-    if(battle.animating){battle.animTimer-=dt;return;}
-    if(battle.turn==='player'){
-      if(keys['arrowup']||buttons.up){battle.menuIdx=(battle.menuIdx-1+4)%4;buttons.up=false;keys['arrowup']=false;}
-      if(keys['arrowdown']||buttons.down){battle.menuIdx=(battle.menuIdx+1)%4;buttons.down=false;keys['arrowdown']=false;}
-      if(keys['enter']||keys[' ']||buttons.attackPressed){battleAction(battle.menuIdx);keys['enter']=false;keys[' ']=false;buttons.attackPressed=false;buttons.attack=false;}
-    }
-    return;
-  }
-  if(gameState!=='overworld')return;
-
-  let dx=0,dy=0;
-  if(buttons.left)dx=-1;if(buttons.right)dx=1;
-  if(buttons.up)dy=-1;if(buttons.down)dy=1;
-
-  if(dx!==0||dy!==0){
-    player.moving=true;
-    if(dx!==0&&dy!==0){dx*=0.707;dy*=0.707;}
-    const newX=player.x+dx*player.speed;
-    const newY=player.y+dy*player.speed;
-    const tx=Math.floor(newX/TILE),ty=Math.floor(newY/TILE);
-    const tx2=Math.floor((newX+TILE-1)/TILE),ty2=Math.floor((newY+TILE-1)/TILE);
-    let blocked=false;
-    for(let cy=ty;cy<=ty2&&!blocked;cy++){
-      for(let cx=tx;cx<=tx2&&!blocked;cx++){
-        if(cx<0||cx>=WORLD_W||cy<0||cy>=WORLD_H){blocked=true;break;}
-        const t=worldMap[cy][cx];
-        if(t===2||t===3||t===4||t===6)blocked=true;
-      }
-    }
-    if(!blocked){player.x=newX;player.y=newY;}
-    if(Math.abs(dx)>Math.abs(dy))player.dir=dx>0?3:1;
-    else player.dir=dy>0?0:2;
-    player.frameTimer+=dt;
-    if(player.frameTimer>120){player.frame=(player.frame+1)%4;player.frameTimer=0;}
-  }else{player.moving=false;player.frame=0;}
-
-  const jdx=player.x-jada.x,jdy=player.y-jada.y;
-  const jdist=Math.sqrt(jdx*jdx+jdy*jdy);
-  if(jdist>50){jada.x+=jdx/jdist*1.5;jada.y+=jdy/jdist*1.5;jada.frameTimer+=dt;if(jada.frameTimer>120){jada.frame=(jada.frame+1)%4;jada.frameTimer=0;}}
-
-  camera.x=player.x-canvas.width/2+TILE/2;
-  camera.y=player.y-canvas.height/2+TILE/2;
-  camera.x=Math.max(0,Math.min(camera.x,WORLD_W*TILE-canvas.width));
-  camera.y=Math.max(0,Math.min(camera.y,WORLD_H*TILE-canvas.height));
-
-  enemies.forEach(e=>{
-    if(e.hp<=0)return;
-    const distToPlayer=Math.hypot(player.x-e.x,player.y-e.y);
-    e.hitFlash=Math.max(0,e.hitFlash-1);
-    e.attackCooldown=Math.max(0,e.attackCooldown-dt);
-    if(distToPlayer<e.detectRange){
-      e.state='chase';
-      if(distToPlayer<e.attackRange&&e.attackCooldown<=0){
-        const dmg=Math.max(1,e.atk-player.def);
-        player.hp-=dmg;e.attackCooldown=1000;
-        if(player.hp<=0){player.hp=0;showDialog('System','You were defeated!',()=>{player.hp=player.maxHp;player.x=19*TILE;player.y=20*TILE;});}
-      }else{const adx=player.x-e.x,ady=player.y-e.y;const ad=Math.sqrt(adx*adx+ady*ady);e.x+=adx/ad*e.speed*1.5;e.y+=ady/ad*e.speed*1.5;}
-    }else if(e.state==='chase'&&distToPlayer>e.detectRange*1.5){e.state='patrol';}
-    if(e.state==='patrol'){
-      e.moveTimer+=dt;
-      if(e.moveTimer>2000){e.dir=Math.random()*Math.PI*2;e.moveTimer=0;}
-      const nx=e.x+Math.cos(e.dir)*e.speed*0.5;
-      const ny=e.y+Math.sin(e.dir)*e.speed*0.5;
-      const pd=Math.hypot(nx-e.patrolOrigin.x,ny-e.patrolOrigin.y);
-      if(pd<e.patrolRadius){e.x=nx;e.y=ny;}else{e.dir=Math.atan2(e.patrolOrigin.y-e.y,e.patrolOrigin.x-e.x);}
-    }
-  });
-
-  if(buttons.attackPressed){
-    buttons.attackPressed=false;
-    let nearestEnemy=null,nearestDist=50;
-    enemies.forEach(e=>{if(e.hp<=0)return;const d=Math.hypot(player.x-e.x,player.y-e.y);if(d<nearestDist){nearestDist=d;nearestEnemy=e;}});
-    if(nearestEnemy)startBattle(nearestEnemy);
-    else{
-      const elderX=19*TILE,elderY=19*TILE;
-      if(Math.hypot(player.x-elderX,player.y-elderY)<60&&!storyFlags.metElder){
-        storyFlags.metElder=true;questLog[1].current=1;questLog[1].done=true;
-        showDialog('Elder','Welcome, warrior. The land is in danger. Defeat the spiders in the forest!',()=>{
-          showDialog('Elder','Take this Elder\'s Knife. You will need it.',()=>{player.atk+=5;});
-        });
-      }else if(Math.hypot(player.x-elderX,player.y-elderY)<60){
-        const doneCount=questLog.filter(q=>q.done).length;
-        showDialog('Elder',`You have completed ${doneCount} of ${questLog.length} quests. Keep fighting!`,()=>{});
-      }
-    }
-  }
-  buttons.up=false;buttons.down=false;buttons.left=false;buttons.right=false;
-}
-
-function handleMenuSelect(){
-  if(menuIdx===0)showDialog('Status',`Rogen LV${player.level}\nHP:${player.hp}/${player.maxHp}\nMP:${player.mp}/${player.maxMp}\nATK:${player.atk} DEF:${player.def}\nEXP:${player.exp}/${player.expNext}\nGold:${player.gold}`,()=>{gameState='overworld';});
-  else if(menuIdx===1)showDialog('Inventory','Healing Herb x5\nMagic Water x3\nElder\'s Knife\nLeather Armor',()=>{gameState='overworld';});
-  else if(menuIdx===2){const qt=questLog.map(q=>`${q.name}: ${q.current}/${q.target}${q.done?' ✓':''}`).join('\n');showDialog('Quests',qt,()=>{gameState='overworld';});}
-  else if(menuIdx===3){localStorage.setItem('elvenSave',JSON.stringify({player,questLog,storyFlags}));showDialog('System','Game saved!',()=>{gameState='overworld';});}
-  else closeMenu();
-}
-
-// ===== RENDER =====
+// ================= RENDER =================
 function render(){
-  ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);
-  if(gameState==='loading')return;
-  if(gameState==='menu'){renderMenu();return;}
-  if(gameState==='overworld'||gameState==='dialog')renderOverworld();
-  if(gameState==='battle')renderBattle();
-  if(gameState==='dialog')renderDialog();
-  if(menuOpen&&gameState==='overworld')renderMenuOverlay();
+  ctx.fillStyle='#0a1408';ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(state==='menu'){renderMenu();return;}
+  if(state==='ending'){renderEnding();return;}
+  if(state==='battle'){renderBattle();return;}
+  renderWorld();
+  if(state==='dialog')renderDialog();
+  if(state==='menuOverlay')renderOverlay();
 }
-
-function renderOverworld(){
-  const startX=Math.floor(camera.x/TILE)-1;
-  const startY=Math.floor(camera.y/TILE)-1;
-  const endX=startX+Math.ceil(canvas.width/TILE)+3;
-  const endY=startY+Math.ceil(canvas.height/TILE)+3;
-
-  for(let y=startY;y<endY&&y<WORLD_H;y++){
-    for(let x=startX;x<endX&&x<WORLD_W;x++){
-      if(x<0||y<0)continue;
-      const tile=worldMap[y][x];
-      const sx=x*TILE-camera.x;
-      const sy=y*TILE-camera.y;
-      const tileSprites=['s1438_img158_pal291_tr0','s1440_img159_pal292_tr0','s1442_img160_pal293_tr0','s1444_img161_pal294_tr0','s1466_img172_pal312_tr0','s1511_img187_pal353_tr0','s1470_img173_pal316_tr0','s1475_img175_pal321_tr0','s1487_img179_pal333_tr0','s1488_img179_pal334_tr0'];
-      if(!drawSprite(tileSprites[tile]||'',sx,sy,TILE/48)){
-        drawFallback(TILE_COLORS[tile]||'#333',sx,sy,TILE,TILE);
-      }
-    }
-  }
-
-  enemies.forEach(e=>{
-    if(e.hp<=0)return;
-    const sx=e.x-camera.x-e.size/2;
-    const sy=e.y-camera.y-e.size/2;
-    if(sx<-100||sx>canvas.width+100||sy<-100||sy>canvas.height+100)return;
-    if(e.hitFlash>0){ctx.fillStyle='#fff';ctx.fillRect(sx,sy,e.size,e.size);}
-    else if(!drawSprite(e.sprite,sx,sy,e.size/64)){drawFallback(e.color,sx,sy,e.size,e.size,e.type);}
-    if(e.state==='chase'){ctx.fillStyle='#333';ctx.fillRect(sx,sy-8,e.size,4);ctx.fillStyle='#0f0';ctx.fillRect(sx,sy-8,e.size*(e.hp/e.maxHp),4);}
-  });
-
-  const jx=jada.x-camera.x-12;
-  const jy=jada.y-camera.y-12;
-  if(!drawSprite('s0001_img1_pal1_tr0',jx,jy,1)){drawFallback('#9933ff',jx,jy,24,24,'J');}
-
-  const px=player.x-camera.x-12;
-  const py=player.y-camera.y-12;
-  const flip=player.dir===1;
-  if(!drawSprite('s0000_img0_pal0_tr0',px,py,1,flip)){drawFallback('#ff4444',px,py,24,24,'R');}
-
-  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(8,8,180,70);
-  ctx.strokeStyle='#4da6ff';ctx.strokeRect(8,8,180,70);
-  ctx.fillStyle='#fff';ctx.font='bold 14px monospace';ctx.textAlign='left';
-  ctx.fillText(`${player.name} LV${player.level}`,16,26);
-  ctx.fillStyle='#f44';ctx.fillText(`HP:${player.hp}/${player.maxHp}`,16,44);
-  ctx.fillStyle='#48f';ctx.fillText(`MP:${player.mp}/${player.maxMp}`,16,60);
-  ctx.fillStyle='#ff0';ctx.fillText(`Gold:${player.gold}`,110,44);
-  ctx.fillStyle='#fff';ctx.fillText(`EXP:${player.exp}/${player.expNext}`,110,60);
-
-  const mmW=80,mmH=80;
-  const mmX=canvas.width-mmW-10,mmY=10;
-  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(mmX,mmY,mmW,mmH);
-  ctx.strokeStyle='#4da6ff';ctx.strokeRect(mmX,mmY,mmW,mmH);
-  const mmScale=mmW/(WORLD_W*TILE);
-  for(let y=0;y<WORLD_H;y+=2){
-    for(let x=0;x<WORLD_W;x+=2){
-      const t=worldMap[y][x];
-      ctx.fillStyle=TILE_COLORS[t];
-      ctx.fillRect(mmX+x*TILE*mmScale,mmY+y*TILE*mmScale,2,2);
-    }
-  }
-  ctx.fillStyle='#f00';
-  ctx.fillRect(mmX+player.x*mmScale-1,mmY+player.y*mmScale-1,3,3);
-  ctx.fillStyle='#ff0';
-  enemies.forEach(e=>{if(e.hp>0)ctx.fillRect(mmX+e.x*mmScale-1,mmY+e.y*mmScale-1,2,2);});
-}
-
-function renderBattle(){
-  const grad=ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0,'#1a3a5a');grad.addColorStop(1,'#0a1a2a');
-  ctx.fillStyle=grad;ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#2a4a2a';ctx.fillRect(0,canvas.height*0.55,canvas.width,canvas.height*0.45);
-
-  if(battle&&battle.enemy){
-    const ex=canvas.width/2-40;
-    const ey=canvas.height*0.25;
-    const es=battle.enemy.size||64;
-    if(battle.enemy.hitFlash>0){ctx.fillStyle='#fff';ctx.fillRect(ex,ey,es,es);battle.enemy.hitFlash--;}
-    else{drawSprite(battle.enemy.sprite,ex,ey,es/64);}
-    ctx.fillStyle='#333';ctx.fillRect(ex,ey-12,es,6);
-    ctx.fillStyle='#f44';ctx.fillRect(ex,ey-12,es*(battle.enemy.hp/battle.enemy.maxHp),6);
-    ctx.fillStyle='#fff';ctx.font='bold 14px monospace';ctx.textAlign='center';
-    ctx.fillText(battle.enemy.type.toUpperCase(),ex+es/2,ey-18);
-  }
-
-  const px=80;
-  const py=canvas.height*0.5;
-  drawSprite('s0000_img0_pal0_tr0',px,py,1.5);
-  ctx.fillStyle='#fff';ctx.font='bold 14px monospace';ctx.textAlign='left';
-  ctx.fillText(player.name,px,py-10);
-
-  ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(10,10,canvas.width-20,80);
-  ctx.strokeStyle='#4da6ff';ctx.strokeRect(10,10,canvas.width-20,80);
-  ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.textAlign='left';
-  const logs=battle.log.slice(-3);
-  logs.forEach((l,i)=>{ctx.fillText(l,20,30+i*18);});
-
-  const menuY=canvas.height-140;
-  ctx.fillStyle='rgba(0,20,40,0.95)';ctx.fillRect(10,menuY,canvas.width-20,130);
-  ctx.strokeStyle='#4da6ff';ctx.lineWidth=2;ctx.strokeRect(10,menuY,canvas.width-20,130);
-  ctx.font='bold 18px monospace';
-  battle.menuItems.forEach((item,i)=>{
-    const x=30+i*((canvas.width-60)/4);
-    const y=menuY+30;
-    ctx.fillStyle=i===battle.menuIdx?'#ff0':'#fff';
-    ctx.textAlign='center';
-    ctx.fillText((i===battle.menuIdx?'> ':'')+item,x,y);
-  });
-
-  ctx.fillStyle='#fff';ctx.font='14px monospace';ctx.textAlign='left';
-  ctx.fillText(`${player.name}: ${player.hp}/${player.maxHp}`,20,canvas.height-10);
-  ctx.fillText(`LV:${player.level} ATK:${player.atk} DEF:${player.def}`,20,canvas.height-30);
-}
-
-function renderDialog(){
-  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,canvas.width,canvas.height);
-  const boxH=120;
-  const boxY=canvas.height-boxH-20;
-  ctx.fillStyle='rgba(0,20,40,0.95)';ctx.fillRect(20,boxY,canvas.width-40,boxH);
-  ctx.strokeStyle='#4da6ff';ctx.lineWidth=3;ctx.strokeRect(20,boxY,canvas.width-40,boxH);
-  if(dialogSpeaker){ctx.fillStyle='#4da6ff';ctx.font='bold 16px monospace';ctx.textAlign='left';ctx.fillText(dialogSpeaker,35,boxY+25);}
-  ctx.fillStyle='#fff';ctx.font='15px monospace';
-  const text=dialogText.substring(0,dialogCharIdx);
-  wrapText(text,35,boxY+50,canvas.width-70,20);
-  if(dialogCharIdx>=dialogText.length){ctx.fillStyle='#ff0';ctx.font='14px monospace';ctx.textAlign='right';ctx.fillText('▼',canvas.width-40,boxY+boxH-15);}
-}
-
-function wrapText(text,x,y,maxW,lineH){
-  const words=text.split(' ');
-  let line='';
-  let cy=y;
-  for(let i=0;i<words.length;i++){
-    const test=line+words[i]+' ';
-    if(ctx.measureText(test).width>maxW&&i>0){ctx.fillText(line,x,cy);line=words[i]+' ';cy+=lineH;}
-    else{line=test;}
-  }
-  ctx.fillText(line,x,cy);
-}
-
 function renderMenu(){
   ctx.fillStyle='#001a33';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#4da6ff';ctx.font='bold 48px monospace';ctx.textAlign='center';
-  ctx.fillText('ELVEN',canvas.width/2,canvas.height*0.25);
-  ctx.fillText('CHRONICLES',canvas.width/2,canvas.height*0.25+50);
-  ctx.font='22px monospace';
-  const menuItems=['New Game','Continue','Help','Credits'];
-  menuItems.forEach((item,i)=>{
-    ctx.fillStyle=i===currentMenuIdx?'#ff0':'#fff';
-    ctx.fillText((i===currentMenuIdx?'> ':'')+item,canvas.width/2,canvas.height*0.5+i*40);
-  });
-  if(keys['arrowup']){currentMenuIdx=(currentMenuIdx-1+menuItems.length)%menuItems.length;keys['arrowup']=false;}
-  if(keys['arrowdown']){currentMenuIdx=(currentMenuIdx+1)%menuItems.length;keys['arrowdown']=false;}
-  if(keys['enter']||keys[' ']){
-    if(currentMenuIdx===0){
-      player.hp=player.maxHp;player.mp=player.maxMp;player.level=1;player.exp=0;player.x=19*TILE;player.y=20*TILE;
-      questLog.forEach(q=>{q.current=0;q.done=false;});
-      storyFlags={metElder:false};
-      gameState='overworld';
-      showDialog('System','Welcome to Elven Chronicles! Explore the village and defeat monsters!',()=>{});
-    }else if(currentMenuIdx===1){
-      const save=localStorage.getItem('elvenSave');
-      if(save){const d=JSON.parse(save);Object.assign(player,d.player);questLog=d.questLog||questLog;storyFlags=d.storyFlags||storyFlags;gameState='overworld';}
-      else{showDialog('System','No save file found!',()=>{});}
-    }else if(currentMenuIdx===2){
-      showDialog('Help','Arrows/WASD: Move\nAttack button: Interact/Fight\nMenu button: Status/Save\nDefeat enemies to gain EXP!',()=>{gameState='menu';});
-    }else if(currentMenuIdx===3){gameState='credits';}
-    keys['enter']=false;keys[' ']=false;
-  }
-}
-let currentMenuIdx=0;
-
-function renderCredits(){
-  ctx.fillStyle='#001a33';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#4da6ff';ctx.font='bold 36px monospace';ctx.textAlign='center';
-  ctx.fillText('CREDITS',canvas.width/2,100);
-  ctx.fillStyle='#fff';ctx.font='18px monospace';
-  const credits=['Elven Chronicles v1.0','','Developed with Qwen AI','','Art: Sprite Atlas','','Inspired by classic JRPGs','','Thanks for playing!'];
-  credits.forEach((l,i)=>ctx.fillText(l,canvas.width/2,180+i*30));
+  ctx.fillStyle='#4da6ff';ctx.font='bold 52px monospace';ctx.textAlign='center';
+  ctx.fillText('ELVEN',canvas.width/2,canvas.height*0.3);
+  ctx.fillText('CHRONICLES',canvas.width/2,canvas.height*0.3+55);
+  ctx.fillStyle='#fff';ctx.font='22px monospace';
+  ctx.fillText('Press ENTER / ⚔ to begin',canvas.width/2,canvas.height*0.55);
   ctx.fillStyle='#888';ctx.font='14px monospace';
-  ctx.fillText('Press ESC or Attack to return',canvas.width/2,canvas.height-50);
-  if(keys['escape']||keys[' ']||buttons.attackPressed){gameState='menu';keys['escape']=false;keys[' ']=false;buttons.attackPressed=false;}
+  ctx.fillText('Arrows/WASD or buttons — move. ⚔ — attack/talk. ☰ — menu',canvas.width/2,canvas.height*0.62);
+  drawSprite(P.idle,canvas.width/2-24,canvas.height*0.7,2);
 }
-
-function renderMenuOverlay(){
+function renderEnding(){
+  ctx.fillStyle='#001a33';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#ffd700';ctx.font='bold 40px monospace';ctx.textAlign='center';
+  ctx.fillText('VICTORY!',canvas.width/2,canvas.height*0.3);
+  ctx.fillStyle='#fff';ctx.font='18px monospace';
+  ctx.fillText('The Minotaur Chief is slain.',canvas.width/2,canvas.height*0.42);
+  ctx.fillText('Lórien is safe. Rogen and Jada return as heroes.',canvas.width/2,canvas.height*0.47);
+  ctx.fillText(`Final level: ${player.lv}   Gold: ${player.gold}`,canvas.width/2,canvas.height*0.55);
+  ctx.fillStyle='#4da6ff';ctx.fillText('Press ENTER for title',canvas.width/2,canvas.height*0.7);
+}
+function renderWorld(){
+  const camX=Math.max(0,Math.min(player.x-canvas.width/2,(WW*TILE-canvas.width)));
+  const camY=Math.max(0,Math.min(player.y-canvas.height/2,(WH*TILE-canvas.height)));
+  const sx=Math.floor(camX/TILE),sy=Math.floor(camY/TILE);
+  for(let y=sy;y<=sy+Math.ceil(canvas.height/TILE)+1&&y<WH;y++)
+    for(let x=sx;x<=sx+Math.ceil(canvas.width/TILE)+1&&x<WW;x++){
+      if(x<0||y<0)continue;
+      const px=x*TILE-camX,py=y*TILE-camY;
+      if(!drawSprite(TSPR[map[y][x]],px,py,1))box(TCOL[map[y][x]],px,py,TILE,TILE);
+    }
+  // Elder
+  const ex=elder.x-camX-16,ey=elder.y-camY-40;
+  if(!drawSprite('s0090_img61_pal52_tr0',ex,ey,1)){box('#aa8844',ex,ey,32,64,'E');}
+  ctx.fillStyle='#ffd700';ctx.font='11px monospace';ctx.textAlign='center';
+  ctx.fillText('Elder',ex+16,ey-4);
+  // Jada
+  if(!jada.joined){const jx=jada.x-camX-16,jy=jada.y-camY-40;
+    if(!drawSprite('s0113_img61_pal61_tr0',jx,jy,1))box('#9933ff',jx,jy,32,64,'J');
+    ctx.fillStyle='#ff88ff';ctx.fillText('Jada',jx+16,jy-4);}
+  // Enemies
+  for(const e of enemies){if(e.hp<=0)continue;
+    const px=e.x-camX-24,py=e.y-camY-24;
+    if(px<-60||py<-60||px>canvas.width+60||py>canvas.height+60)continue;
+    if(!drawSprite(e.spr,px,py,0.75))box(e.c,px+8,py+8,32,32);
+    ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.textAlign='center';
+    ctx.fillText(e.type+(e.boss?' ★':''),px+24,py-2);
+    if(e.state==='chase'){box('#300',px+4,py-10,40,4);box('#f33',px+4,py-10,40*(e.hp/e.mhp),4);}
+  }
+  // Jada (joined)
+  if(jada.joined){const jx=jada.x-camX-12,jy=jada.y-camY-24;
+    if(!drawSprite('s0113_img61_pal61_tr0',jx,jy,0.7))box('#9933ff',jx,jy,22,44);}
+  // Player
+  const ppx=player.x-camX-16,ppy=player.y-camY-24;
+  const spr=player.moving?P.walk[player.frame]:P.idle;
+  if(!drawSprite(spr,ppx,ppy,1.3,player.dir===1))box('#ff4444',ppx,ppy,30,30,'R');
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(8,8,230,86);
+  ctx.strokeStyle='#4da6ff';ctx.strokeRect(8,8,230,86);
+  ctx.textAlign='left';ctx.font='bold 13px monospace';
+  ctx.fillStyle='#fff';ctx.fillText(`${player.name}  LV ${player.lv}`,16,26);
+  ctx.fillStyle='#f55';ctx.fillText(`HP ${player.hp}/${player.mhp}`,16,44);
+  ctx.fillStyle='#58f';ctx.fillText(`MP ${player.mp}/${player.mmp}`,16,60);
+  ctx.fillStyle='#ff0';ctx.fillText(`Gold ${player.gold}`,120,44);
+  ctx.fillStyle='#fff';ctx.fillText(`EXP ${player.exp}/${player.next}`,120,60);
+  // Quest tracker
+  const aq=quests.find(q=>!q.done);
+  if(aq){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(canvas.width-260,100,250,26);
+    ctx.fillStyle='#ffd700';ctx.fillText('► '+aq.name+` (${aq.cur}/${aq.tgt})`,canvas.width-252,118);}
+  // Minimap
+  const mm=90,mx=canvas.width-mm-10,my=10;
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(mx,my,mm,mm);
+  ctx.strokeStyle='#4da6ff';ctx.strokeRect(mx,my,mm,mm);
+  const sc=mm/(WW*TILE);
+  for(let y=0;y<WH;y+=2)for(let x=0;x<WW;x+=2){ctx.fillStyle=TCOL[map[y][x]];ctx.fillRect(mx+x*TILE*sc,my+y*TILE*sc,2,2);}
+  ctx.fillStyle='#f00';ctx.fillRect(mx+player.x*sc-1,my+player.y*sc-1,3,3);
+  ctx.fillStyle='#ff0';for(const e of enemies)if(e.hp>0)ctx.fillRect(mx+e.x*sc,my+e.y*sc,2,2);
+}
+function renderDialog(){
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const bh=110,by=canvas.height-bh-90;
+  ctx.fillStyle='rgba(0,20,45,0.97)';ctx.fillRect(20,by,canvas.width-40,bh);
+  ctx.strokeStyle='#4da6ff';ctx.lineWidth=3;ctx.strokeRect(20,by,canvas.width-40,bh);
+  ctx.fillStyle='#4da6ff';ctx.font='bold 16px monospace';ctx.textAlign='left';
+  ctx.fillText(dlgWho,36,by+24);
+  ctx.fillStyle='#fff';ctx.font='15px monospace';
+  wrap(dlgText.substring(0,dlgI),36,by+50,canvas.width-80,20);
+  if(dlgI>=dlgText.length){ctx.fillStyle='#ff0';ctx.textAlign='right';ctx.fillText('▼',canvas.width-40,by+bh-12);}
+}
+function wrap(t,x,y,mw,lh){const w=t.split('\n');let cy=y;
+  for(const line of w){const words=line.split(' ');let l='';
+    for(const word of words){const tl=l+word+' ';
+      if(ctx.measureText(tl).width>mw&&l){ctx.fillText(l,x,cy);l=word+' ';cy+=lh;}else l=tl;}
+    ctx.fillText(l,x,cy);cy+=lh;}}
+function renderOverlay(){
   ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,canvas.width,canvas.height);
-  const mw=220,mh=240;
-  const mx=(canvas.width-mw)/2,my=(canvas.height-mh)/2;
+  const mw=240,mh=230,mx=(canvas.width-mw)/2,my=(canvas.height-mh)/2;
   ctx.fillStyle='#001a33';ctx.fillRect(mx,my,mw,mh);
   ctx.strokeStyle='#4da6ff';ctx.lineWidth=3;ctx.strokeRect(mx,my,mw,mh);
   ctx.fillStyle='#4da6ff';ctx.font='bold 20px monospace';ctx.textAlign='center';
   ctx.fillText('MENU',mx+mw/2,my+30);
+  const opts=['Status','Inventory','Quests','Save','Close'];
   ctx.font='16px monospace';
-  menuOptions.forEach((opt,i)=>{
-    ctx.fillStyle=i===menuIdx?'#ff0':'#fff';
-    ctx.textAlign='left';
-    ctx.fillText((i===menuIdx?'> ':'')+opt,mx+20,my+70+i*30);
-  });
-  if(keys['arrowup']||buttons.up){menuIdx=(menuIdx-1+menuOptions.length)%menuOptions.length;keys['arrowup']=false;buttons.up=false;}
-  if(keys['arrowdown']||buttons.down){menuIdx=(menuIdx+1)%menuOptions.length;keys['arrowdown']=false;buttons.down=false;}
-  if(keys['enter']||keys[' ']||buttons.attackPressed){handleMenuSelect();keys['enter']=false;keys[' ']=false;buttons.attackPressed=false;}
+  opts.forEach((o,i)=>{ctx.fillStyle=i===menuIdx?'#ff0':'#fff';ctx.textAlign='left';
+    ctx.fillText((i===menuIdx?'► ':'')+o,mx+24,my+62+i*32;});
+}
+function renderBattle(){
+  const g=ctx.createLinearGradient(0,0,0,canvas.height);
+  g.addColorStop(0,'#122a44');g.addColorStop(0.6,'#0a1622');g.addColorStop(1,'#1a2a1a');
+  ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const b=battle;if(!b)return;
+  // enemy
+  const es=b.e.boss?1.6:1.2,ew=64*es;
+  const ex=canvas.width/2-ew/2,ey=canvas.height*0.18;
+  if(b.anim>0&&b.turn==='player')box('#fff',ex-4,ey-4,ew+8,ew+8);
+  if(!drawSprite(b.e.spr,ex,ey,es))box(b.e.c,ex,ey,ew,ew);
+  ctx.fillStyle='#fff';ctx.font='bold 16px monospace';ctx.textAlign='center';
+  ctx.fillText(b.e.type.toUpperCase()+(b.e.boss?' ★ CHIEF ★':''),canvas.width/2,ey-14);
+  box('#333',ex,ey-10,ew,6);box('#f33',ex,ey-10,ew*Math.max(0,b.e.hp)/b.e.mhp,6);
+  // player
+  if(!drawSprite(P.idle,70,canvas.height*0.42,1.8))box('#f44',70,canvas.height*0.42,44,44);
+  ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='14px monospace';
+  ctx.fillText(`${player.name} LV${player.lv}  HP ${player.hp}/${player.mhp}  MP ${player.mp}/${player.mmp}`,70,canvas.height*0.42-10);
+  // log
+  ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(10,10,canvas.width-20,70);
+  ctx.strokeStyle='#4da6ff';ctx.strokeRect(10,10,canvas.width-20,70);
+  ctx.fillStyle='#fff';ctx.font='13px monospace';
+  b.log.slice(-3).forEach((l,i)=>ctx.fillText(l,22,32+i*20));
+  // menu
+  if(b.turn==='player'&&!b.over){
+    const my=canvas.height-120;
+    ctx.fillStyle='rgba(0,20,40,0.95)';ctx.fillRect(10,my,canvas.width-20,110);
+    ctx.strokeStyle='#4da6ff';ctx.strokeRect(10,my,canvas.width-20,110);
+    ctx.font='bold 18px monospace';
+    b.items.forEach((it,i)=>{ctx.fillStyle=i===b.idx?'#ff0':'#fff';ctx.textAlign='left';
+      ctx.fillText((i===b.idx?'► ':'')+it,30+(i%2)*(canvas.width/2-40),my+35+Math.floor(i/2)*40);});
+  }else{ctx.fillStyle='#888';ctx.font='14px monospace';ctx.textAlign='center';
+    ctx.fillText('Enemy turn...',canvas.width/2,canvas.height-60);}
 }
 
-// ===== MAIN LOOP =====
-let lastTime=0;
-function loop(ts){
-  const dt=Math.min(50,ts-lastTime);
-  lastTime=ts;
-  update(dt);
-  render();
-  requestAnimationFrame(loop);
-}
-
-// ===== START =====
-(async()=>{
-  await loadAtlas();
-  gameState='menu';
-  requestAnimationFrame(loop);
-})();
+// ================= LOOP =================
+let last=0;
+function loop(ts){const dt=Math.min(50,ts-last);last=ts;update(dt);render();requestAnimationFrame(loop);}
+loadAtlas().then(()=>{state='menu';requestAnimationFrame(loop);});
 </script>
 </body>
 </html>
